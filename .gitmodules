@@ -1,0 +1,15 @@
+[submodule "external/linux-sgx"]
+	path = external/linux-sgx
+	url = https://github.com/intel/linux-sgx/
+[submodule "external/SGXDataCenterAttestationPrimitives"]
+	path = external/SGXDataCenterAttestationPrimitives
+	url = https://github.com/intel/SGXDataCenterAttestationPrimitives/
+[submodule "external/intel-sgx-ssl"]
+	path = external/intel-sgx-ssl
+	url = https://github.com/intel/intel-sgx-ssl
+[submodule "external/sgx-ra-tls"]
+	path = external/sgx-ra-tls
+	url = https://github.com/cloud-security-research/sgx-ra-tls
+[submodule "external/tinycbor"]
+	path = external/tinycbor
+	url = https://github.com/feido-token/tinycbor
