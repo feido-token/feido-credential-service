@@ -1,0 +1,108 @@
+######## SGX SDK Settings ########
+SGX_SDK ?= /opt/intel/sgxsdk
+SGX_MODE ?= HW
+SGX_ARCH = x64
+SGX_DEBUG ?= 1
+
+# eval build
+#SGX_DEBUG = 0
+#SGX_PRERELEASE = 1
+
+include $(SGX_SDK)/buildenv.mk
+
+SGX_SDK_INC ?= $(SGX_SDK)/include
+
+SGX_COMMON_FLAGS := -m64 -Wall
+SGX_LIBRARY_PATH := $(SGX_SDK)/lib64
+SGX_ENCLAVE_SIGNER := $(SGX_SDK)/bin/x64/sgx_sign
+SGX_EDGER8R := $(SGX_SDK)/bin/x64/sgx_edger8r
+
+ifeq ($(SGX_DEBUG), 1)
+ifeq ($(SGX_PRERELEASE), 1)
+$(error Cannot set SGX_DEBUG and SGX_PRERELEASE at the same time!!)
+endif
+endif
+
+ifeq ($(SGX_DEBUG), 1)
+        SGX_COMMON_FLAGS += -O0 -g
+else
+        SGX_COMMON_FLAGS += -O2 -D_FORTIFY_SOURCE=2
+endif
+
+
+######## tinycbor ########
+
+TINYCBOR_HEADERS = src/cbor.h src/cborjson.h src/tinycbor-version.h
+TINYCBOR_FREESTANDING_SOURCES = \
+	src/cborerrorstrings.c \
+	src/cborencoder.c \
+	src/cborencoder_close_container_checked.c \
+	src/cborencoder_float.c \
+	src/cborparser.c \
+	src/cborparser_float.c \
+	src/cborpretty.c \
+
+# fopen: yes?
+# open_memstream: no.
+# fopencookie: no.
+# gc-sections: yes
+# freestanding: ?? (I think: no.)
+# cjson: no.
+# system-cjson: no.
+# -include .config
+
+#ifeq ($(freestanding-pass),1)
+TINYCBOR_SOURCES = $(TINYCBOR_FREESTANDING_SOURCES)
+#else
+#TINYCBOR_SOURCES = \
+#	$(TINYCBOR_FREESTANDING_SOURCES) \
+#	src/cborparser_dup_string.c \
+#	src/cborpretty_stdio.c \
+#	src/cbortojson.c \
+#	src/cborvalidation.c \
+
+Lib_Include_Paths := -Isrc -I$(SGX_SDK_INC) -I$(SGX_SDK_INC)/tlibc
+
+Lib_C_Flags := $(SGX_COMMON_FLAGS) -nostdinc
+Lib_C_Flags += -fdata-sections -ffunction-sections
+#Lib_C_Flags += -Os
+Lib_C_Flags += -Wl,--gc-sections -fvisibility=hidden -fpie -fpic -fstack-protector -fno-builtin-printf -Wall -Wextra
+
+Lib_C_Flags += $(Lib_Include_Paths)
+
+Lib_C_Flags += -fno-builtin-printf
+Lib_C_Flags += -std=c11 $(MITIGATION_CFLAGS)
+##-std=gnu99
+
+Lib_C_Flags += -Werror=incompatible-pointer-types \
+	-Wimplicit-function-declaration \
+	-Werror=int-conversion
+
+#
+# if open_memstream is unavailable on the system, try to implement our own
+# version using funopen or fopencookie
+Lib_C_Flags += -DWITHOUT_OPEN_MEMSTREAM
+
+#Lib_C_Flags += -D__STDC_HOSTED__=0
+Lib_C_Flags += -DTINYCBOR_FREESTANDING
+
+Lib_Name := libtsgx_tinycbor.a
+Lib := tsgx_tinycbor
+
+# TODO:  LDLIBS = -lm
+
+$(Lib_Name): $(TINYCBOR_SOURCES:.c=.o)
+	$(AR) cqs $@ $^
+
+
+clean:
+	$(RM) $(TINYCBOR_SOURCES:.c=.o)
+	$(RM) $(Lib_Name)
+
+.PHONY: all
+.PHONY: clean
+.SECONDARY:
+
+%.o: %.c
+	@test -d $(@D) || $(MKDIR) $(@D)
+	$(CC) $(Lib_C_Flags) -c -o $@ $<

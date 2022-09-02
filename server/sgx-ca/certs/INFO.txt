@@ -1,0 +1,2 @@
+csca-germany_103_self_signed.cer : BSI 08/2016, self-signed CSCA
+csca-germany-101-self-signed.cer : BSI 10/2013, self-signed CSCA

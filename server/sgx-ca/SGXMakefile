@@ -1,0 +1,125 @@
+#
+# Copyright (C) 2011-2020 Intel Corporation. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+#   * Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#   * Redistributions in binary form must reproduce the above copyright
+#     notice, this list of conditions and the following disclaimer in
+#     the documentation and/or other materials provided with the
+#     distribution.
+#   * Neither the name of Intel Corporation nor the names of its
+#     contributors may be used to endorse or promote products derived
+#     from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+#
+######## SGX SDK Settings ########
+SGX_SDK ?= /opt/intel/sgxsdk
+SGX_MODE ?= HW
+SGX_ARCH = x64
+SGX_DEBUG ?= 1
+
+# eval build
+#SGX_DEBUG = 0
+#SGX_PRERELEASE = 1
+
+include $(SGX_SDK)/buildenv.mk
+
+SGX_SDK_INC ?= $(SGX_SDK)/include
+
+SGX_COMMON_FLAGS := -m64 -Wall
+SGX_LIBRARY_PATH := $(SGX_SDK)/lib64
+SGX_ENCLAVE_SIGNER := $(SGX_SDK)/bin/x64/sgx_sign
+SGX_EDGER8R := $(SGX_SDK)/bin/x64/sgx_edger8r
+#SGX_PROTOC := $(SGX_SDK)/bin/x64/sgx_protoc
+
+ifeq ($(SGX_DEBUG), 1)
+ifeq ($(SGX_PRERELEASE), 1)
+$(error Cannot set SGX_DEBUG and SGX_PRERELEASE at the same time!!)
+endif
+endif
+
+ifeq ($(SGX_DEBUG), 1)
+        SGX_COMMON_FLAGS += -O0 -g
+else
+        SGX_COMMON_FLAGS += -O2 -D_FORTIFY_SOURCE=2
+endif
+
+#SGX_COMMON_FLAGS += -Wall -Wextra -Winit-self -Wpointer-arith -Wreturn-type \
+#                    -Waddress -Wsequence-point -Wformat-security \
+#                    -Wmissing-include-dirs -Wfloat-equal -Wundef -Wshadow \
+#                    -Wcast-align -Wcast-qual -Wconversion -Wredundant-decls
+#SGX_COMMON_CFLAGS := $(SGX_COMMON_FLAGS) -Wjump-misses-init -Wstrict-prototypes -Wunsuffixed-float-constants
+#SGX_COMMON_CXXFLAGS := $(SGX_COMMON_FLAGS) -Wnon-virtual-dtor -std=c++11
+
+
+# Required to make protobuf not include some standard system headers
+#SGX_COMMON_FLAGS += -DPB_ENABLE_SGX
+
+
+#SGX_EDL_FILE := $(PACKAGE_INC)/sgx_tsgxssl.edl
+
+SSL_PATH ?= ../../external/intel-sgx-ssl/Linux/package
+SSL_INC ?= ${SSL_PATH}/include
+
+
+Lib_C_Files := fido_sgx_ca.c fido_sgx_sod_dg.c
+Lib_C_Files += openpace/eac.c openpace/ca_lib.c openpace/eac_lib.c openpace/objects.c
+Lib_C_Files += openpace/eac_dh.c openpace/eac_ecdh.c
+Lib_C_Files += openpace/misc.c openpace/eac_util.c
+Lib_C_Files += openpace/x509_lookup.c
+Lib_C_Files += openpace/eac_kdf.c
+
+Lib_C_Objects := $(Lib_C_Files:.c=.o)
+
+Lib_Include_Paths := -I. -Iopenpace -I$(SGX_SDK_INC) -I$(SGX_SDK_INC)/tlibc -I$(SSL_INC)
+
+Lib_C_Flags := $(SGX_COMMON_FLAGS) -nostdinc
+Lib_C_Flags += -fdata-sections -ffunction-sections
+#Lib_C_Flags += -Os
+Lib_C_Flags += -Wl,--gc-sections -fvisibility=hidden -fpie -fpic -fstack-protector -fno-builtin-printf -Wformat -Wformat-security
+Lib_C_Flags += $(Lib_Include_Paths)
+
+Lib_C_Flags += -fno-builtin-printf
+
+Lib_C_Flags += -Wno-implicit-function-declaration -std=c11 $(MITIGATION_CFLAGS)
+
+
+Lib_Name := libtsgx_epass_ca.a
+Lib := tsgx_epass_ca
+
+
+
+.PHONY: all run
+
+all: $(Lib_Name)
+
+
+
+%.o: %.c
+	@$(CC) $(Lib_C_Flags) -c $< -o $@
+	@echo "CC  <=  $<"
+
+
+$(Lib_Name): $(Lib_C_Objects)
+	@$(AR) rcs  $@ $^
+	@echo "LINK =>  $@"
+
+
+clean:
+	@rm -f $(Lib_Name) $(Lib_C_Objects)

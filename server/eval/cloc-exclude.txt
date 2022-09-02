@@ -1,0 +1,17 @@
+Enclave/fido_sgx.pb.h
+Enclave/fido_sgx.pb.cc
+Enclave/Enclave_t.c
+Server/Enclave_u.c
+Enclave/ra-tls/ra_tls_t.c
+Server/Enclave_u.h
+Enclave/fido_sgx.proto
+Enclave/Enclave_t.h
+Server/ra-tls/sgxsdk-ra-attester_u.c
+Enclave/ra-tls/sgxsdk-ra-attester_t.c
+Server/ra-tls/ra_tls_u.h
+Enclave/ra-tls/ra_tls_t.h
+Enclave/Enclave.config.xml
+Enclave/eid-revoke/feido-database.proto
+Enclave/eid-revoke/feido-database.pb.cc
+Enclave/eid-revoke/feido-database.pb.h
+Server/ra-tls/ra_tls_u.c

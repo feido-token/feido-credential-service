@@ -1,0 +1,10 @@
+.config_HW_DEBUG_x64
+.config_HW_PRERELEASE_x64
+
+*.so
+credservice-sgx
+Server/*.o
+Server/Enclave_u.*
+Enclave/*.o
+Enclave/eid-revoke/*.o
+Enclave/Enclave_t.*
