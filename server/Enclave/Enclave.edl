@@ -1,0 +1,27 @@
+/* Enclave.edl - Top EDL file. */
+
+enclave {
+    from "sgx_tstdc.edl" import sgx_oc_cpuidex;
+    from "sgx_tsgxssl.edl" import *;
+    from "sgx_pthread.edl" import *;
+
+    from "ra-tls/ra_tls.edl" import ocall_sgx_init_quote, ocall_remote_attestation;
+
+    /* 
+     * ocall_print_string - invokes OCALL to display string buffer inside the enclave.
+     *  [in]: copy the string buffer to App outside.
+     *  [string]: specifies 'str' is a NULL terminated buffer.
+     */
+    untrusted {
+        void ocall_print_string([in, string] const char *str);
+
+        // eID revocation database service
+        int ocall_setup_db_conn(short port, [in, string] const char *dst_ip);
+        void ocall_close_db_conn(int sock_fd);
+    };
+
+    trusted {
+        public int ecall_init_server_context(void);
+        public void ecall_new_tcp_client(int cli_sock);
+    };
+};
