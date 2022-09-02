@@ -1,0 +1,284 @@
+diff --git a/Linux/Makefile b/Linux/Makefile
+index 9524f45..ff44a21 100644
+--- a/Linux/Makefile
++++ b/Linux/Makefile
+@@ -55,6 +55,7 @@ sgxssl_no_mitigation:
+ clean:
+ 	$(MAKE) -C sgx/ clean
+ 	rm -rf $(PACKAGE_LIB)/$(OPENSSL_LIB) $(PACKAGE_INC)/openssl/
++	rm -rf $(PACKAGE_LIB)/libsgx_tsgxssl_tls.a
+ 	rm -rf $(PACKAGE_LIB)/cve_2020_0551_load
+ 	rm -rf $(PACKAGE_LIB)/cve_2020_0551_cf
+ 
+diff --git a/Linux/build_openssl.sh b/Linux/build_openssl.sh
+index d5c5c32..c8f8ad2 100755
+--- a/Linux/build_openssl.sh
++++ b/Linux/build_openssl.sh
+@@ -154,8 +154,9 @@ then
+     cp $SGXSSL_ROOT/../openssl_source/Linux/x86_64cpuid.s       ./crypto/x86_64cpuid.s
+ fi
+ 
+-make libcrypto.a || exit 1
++make libcrypto.a libssl.a || exit 1
+ cp libcrypto.a $SGXSSL_ROOT/package/lib64/$OUTPUT_LIB || exit 1
++cp libssl.a $SGXSSL_ROOT/package/lib64/libsgx_tsgxssl_tls.a || exit 1
+ objcopy --rename-section .init=Q6A8dc14f40efc4288a03b32cba4e $SGXSSL_ROOT/package/lib64/$OUTPUT_LIB || exit 1
+ cp include/openssl/* $SGXSSL_ROOT/package/include/openssl/ || exit 1
+ cp include/crypto/* $SGXSSL_ROOT/package/include/crypto/ || exit 1
+diff --git a/Linux/package/include/sgx_tsgxssl.edl b/Linux/package/include/sgx_tsgxssl.edl
+index cbc4888..5f5b9a3 100644
+--- a/Linux/package/include/sgx_tsgxssl.edl
++++ b/Linux/package/include/sgx_tsgxssl.edl
+@@ -36,7 +36,20 @@ enclave {
+     from "sgx_tstdc.edl" import *;
+     
+     untrusted {
+-    	 void u_sgxssl_ftime([out, size=timeb_len] void * timeptr, uint32_t timeb_len);
++        void u_sgxssl_ftime([out, size=timeb_len] void * timeptr, uint32_t timeb_len) transition_using_threads;
++
++         long u_direct_write (int fd, [in, size=count] const void *buf, size_t count) propagate_errno transition_using_threads;
++         long u_direct_read (int fd, [user_check] void *buf, size_t count) propagate_errno transition_using_threads;
++
++         long u_direct_recv (int sockfd, [user_check] void *buf, size_t count, int flags) propagate_errno transition_using_threads;
++
++         int u_direct_setsockopt(int sockfd, int level, int optname, [in, size=optlen] const void *optval, unsigned int optlen) propagate_errno;
++
++         //int u_direct_getsockopt(int sockfd, int level, int optname, [user_check] void *optval, [in, out] unsigned int *optlen) propagate_errno;
++         // temporary hacky workaround
++         int u_hacky_direct_getsockopt(int sockfd, int level, int optname, [in, out, size=optlen] void *optval, unsigned int optlen, [in, out] unsigned int *res_optlen) propagate_errno;
++
++         int u_hacky_direct_getsockname(int sockfd, [in, out, size=addrlen] void *addr, unsigned int addrlen, [in, out] unsigned int *res_addrlen) propagate_errno;
+     };
+ 
+     trusted {
+diff --git a/Linux/sgx/Makefile b/Linux/sgx/Makefile
+index 5e42cd5..0cb15f1 100644
+--- a/Linux/sgx/Makefile
++++ b/Linux/sgx/Makefile
+@@ -48,9 +48,9 @@ all: $(PACKAGE_LIB)/$(OPENSSL_LIB)
+ 	$(MAKE) -C $(TRUSTED_LIB_DIR) all
+ 	$(MAKE) -C $(UNTRUSTED_LIB_DIR) all
+ 
+-ifeq ($(LINUX_SGX_BUILD), 0)
+-	$(MAKE) -C $(TEST_DIR) all
+-endif
++#ifeq ($(LINUX_SGX_BUILD), 0)
++#	$(MAKE) -C $(TEST_DIR) all
++#endif
+ 
+ ifneq ($(MITIGATION-CVE-2020-0551),)
+ 	$(RM) -r $(PACKAGE_LIB)$(MITIGATION_LIB_PATH)/$(TRUSTED_LIB)
+@@ -67,9 +67,9 @@ $(PACKAGE_LIB)/$(OPENSSL_LIB):
+ clean:	
+ 	$(MAKE) -C $(TRUSTED_LIB_DIR) clean
+ 	$(MAKE) -C $(UNTRUSTED_LIB_DIR) clean
+-	$(MAKE) -C $(TEST_DIR) clean
++#	$(MAKE) -C $(TEST_DIR) clean
+ 	rm -f $(PACKAGE_LIB)/$(TRUSTED_LIB) $(PACKAGE_LIB)/$(UNTRUSTED_LIB)
+ 
+ test: $(PACKAGE_LIB)/$(OPENSSL_LIB) all
+-	$(MAKE) -C $(TEST_DIR) test 
++#	$(MAKE) -C $(TEST_DIR) test
+ 
+diff --git a/Linux/sgx/libsgx_tsgxssl/tsocket.cpp b/Linux/sgx/libsgx_tsgxssl/tsocket.cpp
+index cfb446b..5fac476 100644
+--- a/Linux/sgx/libsgx_tsgxssl/tsocket.cpp
++++ b/Linux/sgx/libsgx_tsgxssl/tsocket.cpp
+@@ -42,6 +42,23 @@ int sgxssl_getsockname(int sockfd, void *addr, socklen_t *addrlen)
+ {
+ 	FSTART;
+ 
++	if (addrlen == nullptr) {
++		errno = EFAULT;
++		return -1;
++	}
++
++	unsigned int new_addrlen = *addrlen;
++	int ret = -1;
++	u_hacky_direct_getsockname (&ret, sockfd, addr, *addrlen, &new_addrlen);
++
++	if (new_addrlen > *addrlen) {
++		errno = EINVAL;
++		return -1;
++	}
++
++	*addrlen = new_addrlen;
++	return ret;
++
+ 	// It is unreachable under the assumption that TLS support is not required.
+ 	// Otherwise should be implemented as OCALL.
+ 	SGX_UNREACHABLE_CODE(SET_ERRNO);
+@@ -55,6 +72,56 @@ int sgxssl_getsockopt(int sockfd, int level, int optname, void *optval, socklen_
+ {
+ 	FSTART;
+ 
++	if (optlen == nullptr) {
++		errno = EFAULT;
++		return -1;
++	}
++
++	unsigned int new_optlen = *optlen;
++	int ret = -1;
++	u_hacky_direct_getsockopt (&ret, sockfd, level, optname, optval, *optlen, &new_optlen);
++
++	if (new_optlen > *optlen) {
++		errno = EINVAL;
++		return -1;
++	}
++
++	*optlen = new_optlen;
++	return ret;
++
++// TODO: need user_check ++ own marshalling
++/*
++	if (optval == nullptr || optlen == nullptr) {
++		errno = EFAULT;
++		return -1;
++	}
++
++	// TODO
++	char buf[256] {};
++	if (*optlen > sizeof(buf)) {
++		errno = EFAULT;
++		return -1;
++	}
++	memcpy(buf, optval, *optlen);
++	socklen_t optlen_arg = *optlen;
++
++	int ret = -1;
++    u_direct_getsockopt (&ret, sockfd, level, optname, optval, optlen);
++
++	if (*optlen > optlen_arg) {
++		memcpy(opt)
++	}
++
++	if ((optval) && ! sgx_is_within_enclave(()))
++
++	if ((ptr) && ! sgx_is_within_enclave((ptr), (siz)))
++	if (is_enclave)
++
++
++
++    return ret;
++*/
++
+ 	// It is unreachable under the assumption that TLS support is not required.
+ 	// Otherwise should be implemented as OCALL.
+ 	SGX_UNREACHABLE_CODE(SET_ERRNO);
+@@ -68,6 +135,10 @@ int sgxssl_setsockopt(int sockfd, int level, int optname, const void *optval, so
+ {
+ 	FSTART;
+ 
++    int ret = -1;
++    u_direct_setsockopt (&ret, sockfd, level, optname, optval, optlen);
++    return ret;
++
+ 	// It is unreachable under the assumption that TLS support is not required.
+ 	// Otherwise should be implemented as OCALL.
+ 	SGX_UNREACHABLE_CODE(SET_ERRNO);
+diff --git a/Linux/sgx/libsgx_tsgxssl/tunistd.cpp b/Linux/sgx/libsgx_tsgxssl/tunistd.cpp
+index b6cdd39..0156c0d 100644
+--- a/Linux/sgx/libsgx_tsgxssl/tunistd.cpp
++++ b/Linux/sgx/libsgx_tsgxssl/tunistd.cpp
+@@ -32,6 +32,9 @@
+ #include "sgx_tsgxssl_t.h"
+ #include "tcommon.h"
+ 
++#include "sgx_edger8r.h"
++#include <string.h>
++
+ #define FAKE_PIPE_READ_FD	0xFAFAFAFALL
+ #define FAKE_PIPE_WRITE_FD	0xFBFBFBFBLL
+ 
+@@ -54,7 +57,7 @@ int sgxssl_pipe (int pipefd[2])
+ 	return 0;
+ }
+ 
+-size_t sgxssl_write (int fd, const void *buf, size_t n)
++long int sgxssl_write (int fd, const void *buf, size_t n)
+ {
+ 	FSTART;
+ 
+@@ -65,8 +68,13 @@ size_t sgxssl_write (int fd, const void *buf, size_t n)
+ 		FEND;
+ 		// On error, -1 is returned, and errno is set appropriately
+ 		return -1;
+-	}
+-
++    } else {
++        long int ret = -1;
++//      seng_write (&ret, fd, buf, n);
++        u_direct_write (&ret, fd, buf, n);
++        return ret;
++    }
++
+ 	// In addition, the function is used by bss_sock.c as writesocket function.
+ 	// It is unreachable under the assumption that TLS support is not required.
+ 	// Otherwise should be implemented as OCALL.
+@@ -77,7 +85,7 @@ size_t sgxssl_write (int fd, const void *buf, size_t n)
+ 
+ }
+ 
+-size_t sgxssl_read(int fd, void *buf, size_t count)
++long int sgxssl_read(int fd, void *buf, size_t count)
+ {
+ 	FSTART;
+ 
+@@ -88,8 +96,30 @@ size_t sgxssl_read(int fd, void *buf, size_t count)
+ 		FEND;
+ 		// On error, -1 is returned, and errno is set appropriately
+ 		return -1;
+-	}
+-
++	} else {
++
++        void *u_buf = sgx_ocalloc(count);
++        if (u_buf == NULL) abort();
++
++        long int ret = -1;
++        u_direct_read( &ret, fd, u_buf, count );
++
++        if (ret <= 0) return ret;
++        if (((size_t)ret) > count) abort();
++
++        memcpy(buf, u_buf, ret);
++        sgx_ocfree();
++        return ret;
++
++
++/*
++           long int ret = -1;
++//           seng_read (&ret, fd, buf, count);
++           u_direct_read (&ret, fd, buf, count);
++           return ret;
++*/
++    }
++
+ 	// In addition, the function is used by bss_sock.c as readsocket function.
+ 	// It is unreachable under the assumption that TLS support is not required.
+ 	// Otherwise should be implemented as OCALL.
+diff --git a/openssl_source/bypass_to_sgxssl.h b/openssl_source/bypass_to_sgxssl.h
+index b83dfd0..f14f605 100644
+--- a/openssl_source/bypass_to_sgxssl.h
++++ b/openssl_source/bypass_to_sgxssl.h
+@@ -226,6 +226,20 @@
+ #define getnameinfo sgxssl_getnameinfo
+ #define ioctl sgxssl_ioctl
+ 
++// For bss_dgram.c
++#define sendto sgxssl_sendto
++#define __recvfrom_alias sgxssl_recvfrom
++#define perror sgxssl_perror
++// modified bss_dgram receive to use recv on connected sockets
++#define __recv_alias sgxssl_recv
++
++// For ssl.a
++#define shutdown sgxssl_shutdown
++#define stat sgxssl_stat
++#define readdir sgxssl_readdir
++#define opendir sgxssl_opendir
++#define closedir sgxssl_closedir
++
+ char * sgxssl___builtin___strcat_chk(char *dest, const char *src, unsigned int dest_size);
+ char * sgxssl___builtin___strcpy_chk(char *dest, const char *src, unsigned int dest_size);
+ 

@@ -1,0 +1,159 @@
+diff --git a/SampleCode/LocalAttestation/EnclaveInitiator/EnclaveInitiator.edl b/SampleCode/LocalAttestation/EnclaveInitiator/EnclaveInitiator.edl
+index f2ae2747..af07a9ce 100644
+--- a/SampleCode/LocalAttestation/EnclaveInitiator/EnclaveInitiator.edl
++++ b/SampleCode/LocalAttestation/EnclaveInitiator/EnclaveInitiator.edl
+@@ -30,6 +30,9 @@
+  */
+ 
+ enclave {
++    from "sgx_tstdc.edl" import *;
++    from "sgx_pthread.edl" import *;
++
+     include "sgx_eid.h"
+     include "datatypes.h"
+     include "dh_session_protocol.h"
+diff --git a/SampleCode/LocalAttestation/EnclaveInitiator/Makefile b/SampleCode/LocalAttestation/EnclaveInitiator/Makefile
+index 0dd1878a..4dc9f24d 100644
+--- a/SampleCode/LocalAttestation/EnclaveInitiator/Makefile
++++ b/SampleCode/LocalAttestation/EnclaveInitiator/Makefile
+@@ -62,7 +62,7 @@ Enclave_Security_Link_Flags := -Wl,-z,relro,-z,now,-z,noexecstack
+ ENCLAVE_LINK_FLAGS := $(Enclave_Security_Link_Flags) \
+      -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L$(SGX_LIBRARY_PATH) \
+              -Wl,--whole-archive -l$(Trts_Library_Name) -Wl,--no-whole-archive \
+-             -Wl,--start-group -lsgx_tstdc -lsgx_tcxx -l$(Crypto_Library_Name) -l$(Service_Library_Name) -Wl,--end-group \
++             -Wl,--start-group -lsgx_tstdc -lsgx_tcxx -l$(Crypto_Library_Name) -l$(Service_Library_Name) -lsgx_pthread -Wl,--end-group \
+              -Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined \
+              -Wl,-pie,-eenclave_entry -Wl,--export-dynamic  \
+              -Wl,--defsym,__ImageBase=0 -Wl,--gc-sections   \
+diff --git a/SampleCode/LocalAttestation/EnclaveResponder/EnclaveResponder.edl b/SampleCode/LocalAttestation/EnclaveResponder/EnclaveResponder.edl
+index 87aa3c45..734078b5 100644
+--- a/SampleCode/LocalAttestation/EnclaveResponder/EnclaveResponder.edl
++++ b/SampleCode/LocalAttestation/EnclaveResponder/EnclaveResponder.edl
+@@ -31,6 +31,8 @@
+ 
+ 
+ enclave {
++    from "sgx_tstdc.edl" import *;
++    from "sgx_pthread.edl" import *;
+     include "sgx_eid.h"
+     include "datatypes.h"
+     include "../Include/dh_session_protocol.h"
+diff --git a/SampleCode/LocalAttestation/EnclaveResponder/Makefile b/SampleCode/LocalAttestation/EnclaveResponder/Makefile
+index c077c734..c90a8e9b 100644
+--- a/SampleCode/LocalAttestation/EnclaveResponder/Makefile
++++ b/SampleCode/LocalAttestation/EnclaveResponder/Makefile
+@@ -62,7 +62,7 @@ Enclave_Security_Link_Flags := -Wl,-z,relro,-z,now,-z,noexecstack
+ ENCLAVE_LINK_FLAGS := $(Enclave_Security_Link_Flags) \
+      -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L$(SGX_LIBRARY_PATH) \
+              -Wl,--whole-archive -l$(Trts_Library_Name) -Wl,--no-whole-archive \
+-             -Wl,--start-group -lsgx_tstdc -lsgx_tcxx -lsgx_tkey_exchange -l$(Crypto_Library_Name) -l$(Service_Library_Name) -Wl,--end-group \
++             -Wl,--start-group -lsgx_tstdc -lsgx_tcxx -lsgx_tkey_exchange -l$(Crypto_Library_Name) -l$(Service_Library_Name) -lsgx_pthread -Wl,--end-group \
+              -Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined \
+              -Wl,-pie,-eenclave_entry -Wl,--export-dynamic  \
+              -Wl,--defsym,__ImageBase=0 -Wl,--gc-sections   \
+diff --git a/SampleCode/RemoteAttestation/Makefile b/SampleCode/RemoteAttestation/Makefile
+index ee86c43f..fb643a0e 100644
+--- a/SampleCode/RemoteAttestation/Makefile
++++ b/SampleCode/RemoteAttestation/Makefile
+@@ -162,7 +162,7 @@ Enclave_Security_Link_Flags := -Wl,-z,relro,-z,now,-z,noexecstack
+ Enclave_Link_Flags := $(Enclave_Security_Link_Flags) \
+     -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L$(SGX_LIBRARY_PATH) \
+ 	-Wl,--whole-archive -l$(Trts_Library_Name) -Wl,--no-whole-archive \
+-	-Wl,--start-group -lsgx_tstdc -lsgx_tcxx -lsgx_tkey_exchange -l$(Crypto_Library_Name) -l$(Service_Library_Name) -Wl,--end-group \
++	-Wl,--start-group -lsgx_tstdc -lsgx_tcxx -lsgx_tkey_exchange -l$(Crypto_Library_Name) -l$(Service_Library_Name) -lsgx_pthread -Wl,--end-group \
+ 	-Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined \
+ 	-Wl,-pie,-eenclave_entry -Wl,--export-dynamic  \
+ 	-Wl,--defsym,__ImageBase=0 -Wl,--gc-sections   \
+diff --git a/SampleCode/RemoteAttestation/isv_enclave/isv_enclave.cpp b/SampleCode/RemoteAttestation/isv_enclave/isv_enclave.cpp
+index e32797e7..d9f089df 100644
+--- a/SampleCode/RemoteAttestation/isv_enclave/isv_enclave.cpp
++++ b/SampleCode/RemoteAttestation/isv_enclave/isv_enclave.cpp
+@@ -36,6 +36,9 @@
+ #include "sgx_tcrypto.h"
+ #include "string.h"
+ 
++#include "sgx_cpuid.h"
++#include "sgx_thread.h"
++
+ // This is the public EC key of the SP. The corresponding private EC key is
+ // used by the SP to sign data used in the remote attestation SIGMA protocol
+ // to sign channel binding data in MSG2. A successful verification of the
+diff --git a/SampleCode/RemoteAttestation/isv_enclave/isv_enclave.edl b/SampleCode/RemoteAttestation/isv_enclave/isv_enclave.edl
+index 4b07ccf1..71b1f6f1 100644
+--- a/SampleCode/RemoteAttestation/isv_enclave/isv_enclave.edl
++++ b/SampleCode/RemoteAttestation/isv_enclave/isv_enclave.edl
+@@ -30,6 +30,8 @@
+  */
+ 
+ enclave {
++    from "sgx_tstdc.edl" import *;
++    from "sgx_pthread.edl" import *;
+     from "sgx_tkey_exchange.edl" import *;
+ 
+     include "sgx_key_exchange.h"
+diff --git a/SampleCode/SampleCommonLoader/Makefile b/SampleCode/SampleCommonLoader/Makefile
+index 9c13741c..6722c9ca 100644
+--- a/SampleCode/SampleCommonLoader/Makefile
++++ b/SampleCode/SampleCommonLoader/Makefile
+@@ -28,19 +28,21 @@
+ # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ #
+ #
++SGX_SDK ?= /opt/intel/sgxsdk
++SGX_LIBRARY_PATH := $(SGX_SDK)/lib64
+ 
+ App_Objects := App/sample.o App/enclave_entry.o
+ 
+ sample: $(App_Objects)
+-	@$(CXX) $^ -o $@ -z noexecstack -lsgx_enclave_common
++	@$(CXX) $^ -o $@ -z noexecstack -L$(SGX_LIBRARY_PATH) -lsgx_enclave_common
+ 	@echo "LINK =>  $@"
+ 
+ App/%.o: App/%.cpp
+-	@$(CXX) -c $< -o $@ -I./Include
++	@$(CXX) -c $< -o $@ -I./Include -I$(SGX_SDK)/include -L$(SGX_LIBRARY_PATH)
+ 	@echo "GEN  =>  $@"
+ 
+ App/%.o: App/%.S
+-	@$(CC) -c $< -o $@ -I./Include
++	@$(CC) -c $< -o $@ -I./Include -I$(SGX_SDK)/include -L$(SGX_LIBRARY_PATH)
+ 	@echo "GEN  =>  $@"
+ 
+ .PHONY: clean
+diff --git a/SampleCode/SealUnseal/Enclave_Seal/Enclave_Seal.edl b/SampleCode/SealUnseal/Enclave_Seal/Enclave_Seal.edl
+index fee9d35d..bf48c5b5 100644
+--- a/SampleCode/SealUnseal/Enclave_Seal/Enclave_Seal.edl
++++ b/SampleCode/SealUnseal/Enclave_Seal/Enclave_Seal.edl
+@@ -31,6 +31,7 @@
+ 
+ enclave {
+     from "sgx_tstdc.edl" import *;
++    from "sgx_pthread.edl" import *;
+ 
+     trusted {
+         /* define ECALLs here. */
+diff --git a/SampleCode/SealUnseal/Enclave_Unseal/Enclave_Unseal.edl b/SampleCode/SealUnseal/Enclave_Unseal/Enclave_Unseal.edl
+index 8d34e6de..552bcc3e 100644
+--- a/SampleCode/SealUnseal/Enclave_Unseal/Enclave_Unseal.edl
++++ b/SampleCode/SealUnseal/Enclave_Unseal/Enclave_Unseal.edl
+@@ -33,6 +33,7 @@
+ 
+ enclave {
+     from "sgx_tstdc.edl" import *;
++    from "sgx_pthread.edl" import *;
+     include "stdint.h"
+     trusted {
+         /* define ECALLs here. */
+diff --git a/SampleCode/SealUnseal/Makefile b/SampleCode/SealUnseal/Makefile
+index c07e3461..3a997566 100644
+--- a/SampleCode/SealUnseal/Makefile
++++ b/SampleCode/SealUnseal/Makefile
+@@ -145,7 +145,7 @@ Enclave_Security_Link_Flags := -Wl,-z,relro,-z,now,-z,noexecstack
+ Enclave_Link_Flags := $(Enclave_Security_Link_Flags) \
+     -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L$(SGX_LIBRARY_PATH) \
+ 	-Wl,--whole-archive -l$(Trts_Library_Name) -Wl,--no-whole-archive \
+-	-Wl,--start-group -lsgx_tstdc -lsgx_tcxx -l$(Crypto_Library_Name) -l$(Service_Library_Name) -Wl,--end-group \
++	-Wl,--start-group -lsgx_tstdc -lsgx_tcxx -l$(Crypto_Library_Name) -l$(Service_Library_Name) -lsgx_pthread -Wl,--end-group \
+ 	-Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined -Wl,-pie,-eenclave_entry \
+ 	-Wl,--export-dynamic -Wl,--defsym,__ImageBase=0 -Wl,--gc-sections
+ 
