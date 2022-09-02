@@ -13,3 +13,6 @@
 [submodule "external/tinycbor"]
 	path = external/tinycbor
 	url = https://github.com/feido-token/tinycbor
+[submodule "server/sgx-ca/openpace"]
+	path = server/sgx-ca/openpace
+	url = git@github.com:feido-token/openpace.git
