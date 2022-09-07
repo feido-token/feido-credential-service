@@ -12,6 +12,9 @@ The Credential Service performs the attribute-based KDF of FIDO WebAuthn credent
 * `external/`: external submodules and patches + build scripts for them
 
 ## Bootstrap Instructions
+**Note:** Please fetch this repo as a submodule of the umbrella repo: https://github.com/feido-token/feido.
+Otherwise, the symoblic links to the FeIDo protobuf files will not resolve.
+
 The bootstrap process requires a combination of semi-automatic scripts and manual efforts.
 The process builds and installs the Intel SGX SDK, PSW, and kernel driver, as well as the required libraries for building the SGX enclave.
 Consider commenting out some install steps in the build scripts of `external/` when you need to rerun the whole bootstrap process and have certain parts already installed.
